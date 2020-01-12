@@ -334,7 +334,7 @@ static int iter_int_enum_next(
 }
 
 
-int yr_execute_code(
+YR_API int yr_execute_code(
     YR_SCAN_CONTEXT* context)
 {
   const uint8_t* ip = context->rules->code_start;
@@ -367,6 +367,7 @@ int yr_execute_code(
   char* identifier;
   char* args_fmt;
 
+  int c;
   int i;
   int found;
   int count;
@@ -1575,6 +1576,45 @@ int yr_execute_code(
         }
 
         push(r1);
+        break;
+
+      case OP_BF_PUSH_P:
+        r1.i = mem[0].i;
+        #if PARANOID_EXEC
+        ensure_within_mem(r1.i);
+        #endif
+        push(mem[r1.i]);
+        break;
+
+      case OP_BF_POP_P:
+        pop(r1);
+        r2.i = mem[0].i;
+        #if PARANOID_EXEC
+        ensure_within_mem(r2.i);
+        #endif
+        mem[r2.i].i = r1.i;
+        break;
+
+      case OP_BF_OUTPUT:
+        r1.i = mem[0].i;
+        #if PARANOID_EXEC
+        ensure_within_mem(r1.i);
+        #endif
+        printf("%c", (char) mem[r1.i].i);
+        fflush(stdout);
+        break;
+
+      case OP_BF_INPUT:
+        r1.i = mem[0].i;
+        #if PARANOID_EXEC
+        ensure_within_mem(r1.i);
+        #endif
+        c = getchar();
+        if (feof(stdin) != 0 || ferror(stdin) != 0) {
+          stop = 1;
+          break;
+        }
+        mem[r1.i].i = c;
         break;
 
       default:

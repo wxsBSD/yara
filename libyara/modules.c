@@ -204,6 +204,9 @@ int yr_modules_unload_all(
 {
   int i;
 
+  if (context->objects_table == NULL)
+    return ERROR_SUCCESS;
+
   for (i = 0; i < sizeof(yr_modules_table) / sizeof(YR_MODULE); i++)
   {
     YR_OBJECT* module_structure = (YR_OBJECT*) yr_hash_table_remove(

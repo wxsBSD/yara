@@ -20,13 +20,16 @@ DIST_SUBDIRS = libyara
 
 ACLOCAL_AMFLAGS=-I m4
 
-bin_PROGRAMS = yara yarac
+bin_PROGRAMS = yara yarac bf2y
 
 yara_SOURCES = args.c args.h common.h threading.c threading.h yara.c
 yara_LDADD = -Llibyara/.libs -lyara
 
 yarac_SOURCES = args.c args.h common.h yarac.c
 yarac_LDADD = -Llibyara/.libs -lyara
+
+bf2y_SOURCES = bf2y.c
+bf2y_LDADD = -Llibyara/.libs -lyara
 
 test_alignment_SOURCES = tests/test-alignment.c
 test_atoms_SOURCES = tests/test-atoms.c tests/util.c libyara/atoms.c

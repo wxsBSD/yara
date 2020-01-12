@@ -43,6 +43,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define OP_HALT           255
 #define OP_NOP            254
 
+#define OP_BF_OUTPUT      200
+#define OP_BF_INPUT       201
+#define OP_BF_PUSH_P      202
+#define OP_BF_POP_P       203
+
 #define OP_AND                     1
 #define OP_OR                      2
 #define OP_NOT                     3
@@ -179,7 +184,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     (IS_UNDEFINED(op1) || IS_UNDEFINED(op2)) ? (0) : (op1 operator op2)
 
 
-int yr_execute_code(
+YR_API int yr_execute_code(
     YR_SCAN_CONTEXT* context);
 
 #endif
