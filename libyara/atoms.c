@@ -117,7 +117,6 @@ int yr_atoms_heuristic_quality(
 
   int quality = 0;
   int unique_bytes = 0;
-  int masked_nibbles = 0;
   int i;
 
   assert(atom->length <= YR_MAX_ATOM_LENGTH);
@@ -129,15 +128,13 @@ int yr_atoms_heuristic_quality(
     switch (atom->mask[i])
     {
       case 0x00:
-        masked_nibbles += 2;
+        quality -= 6;
         break;
       case 0x0F:
-        masked_nibbles += 1;
-        quality += 4;
+        quality += 1;
         break;
       case 0xF0:
-        masked_nibbles += 1;
-        quality += 4;
+        quality += 1;
         break;
       case 0xFF:
         switch (atom->bytes[i])
@@ -160,7 +157,7 @@ int yr_atoms_heuristic_quality(
             else
               quality += 20;
         };
-        if (!yr_bitmask_isset(seen_bytes, atom->bytes[i]))
+        if (!yr_bitmask_is_set(seen_bytes, atom->bytes[i]))
         {
           yr_bitmask_set(seen_bytes, atom->bytes[i]);
           unique_bytes++;
@@ -172,15 +169,13 @@ int yr_atoms_heuristic_quality(
   // it heavily.
 
   if (unique_bytes == 1 &&
-      (yr_bitmask_isset(seen_bytes, 0x00) ||
-       yr_bitmask_isset(seen_bytes, 0x20) ||
-       yr_bitmask_isset(seen_bytes, 0xCC) ||
-       yr_bitmask_isset(seen_bytes, 0xFF)))
+      (yr_bitmask_is_set(seen_bytes, 0x00) ||
+       yr_bitmask_is_set(seen_bytes, 0x20) ||
+       yr_bitmask_is_set(seen_bytes, 0xCC) ||
+       yr_bitmask_is_set(seen_bytes, 0xFF)))
   {
     quality -= 10 * atom->length;
   }
-
-  quality -= masked_nibbles * 3;
 
   return YR_MAX_ATOM_QUALITY - 20 * YR_MAX_ATOM_LENGTH + quality;
 }
@@ -586,8 +581,8 @@ static int _yr_atoms_choose(
 
     if (item->atom.length > 0)
     {
-      item->forward_code = node->re_nodes[shift]->forward_code;
-      item->backward_code = node->re_nodes[shift]->backward_code;
+      item->forward_code_ref = node->re_nodes[shift]->forward_code_ref;
+      item->backward_code_ref = node->re_nodes[shift]->backward_code_ref;
       item->backtrack = 0;
       item->next = NULL;
 
@@ -789,8 +784,8 @@ static int _yr_atoms_case_insensitive(
       }
 
       new_atom->atom.length = atom_length;
-      new_atom->forward_code = atom->forward_code;
-      new_atom->backward_code = atom->backward_code;
+      new_atom->forward_code_ref = atom->forward_code_ref;
+      new_atom->backward_code_ref = atom->backward_code_ref;
       new_atom->backtrack = atom->backtrack;
       new_atom->next = *case_insensitive_atoms;
 
@@ -812,7 +807,7 @@ static int _yr_atoms_case_insensitive(
 // _yr_atoms_xor
 //
 // For a given list of atoms returns another list after a single byte xor
-// has been applied to it (0x01 - 0xff).
+// has been applied to it.
 //
 
 static int _yr_atoms_xor(
@@ -844,8 +839,8 @@ static int _yr_atoms_xor(
       }
 
       new_atom->atom.length = yr_min(atom->atom.length, YR_MAX_ATOM_LENGTH);
-      new_atom->forward_code = atom->forward_code;
-      new_atom->backward_code = atom->backward_code;
+      new_atom->forward_code_ref = atom->forward_code_ref;
+      new_atom->backward_code_ref = atom->backward_code_ref;
       new_atom->backtrack = atom->backtrack;
       new_atom->next = *xor_atoms;
 
@@ -900,8 +895,8 @@ static int _yr_atoms_wide(
     }
 
     new_atom->atom.length = yr_min(atom->atom.length * 2, YR_MAX_ATOM_LENGTH);
-    new_atom->forward_code = atom->forward_code;
-    new_atom->backward_code = atom->backward_code;
+    new_atom->forward_code_ref = atom->forward_code_ref;
+    new_atom->backward_code_ref = atom->backward_code_ref;
     new_atom->backtrack = atom->backtrack * 2;
     new_atom->next = *wide_atoms;
 
@@ -1411,7 +1406,12 @@ int yr_atoms_extract_from_re(
         *atoms = NULL;
       });
 
-  if (modifier.flags & STRING_GFLAGS_WIDE)
+  // Don't do convert atoms to wide here if either base64 modifier is used.
+  // This is to avoid the situation where we have "base64 wide" because
+  // the wide has already been applied BEFORE the base64 encoding.
+  if (modifier.flags & STRING_FLAGS_WIDE &&
+      !(modifier.flags & STRING_FLAGS_BASE64 ||
+        modifier.flags & STRING_FLAGS_BASE64_WIDE))
   {
     FAIL_ON_ERROR_WITH_CLEANUP(
         _yr_atoms_wide(*atoms, &wide_atoms),
@@ -1421,7 +1421,7 @@ int yr_atoms_extract_from_re(
           *atoms = NULL;
         });
 
-    if (modifier.flags & STRING_GFLAGS_ASCII)
+    if (modifier.flags & STRING_FLAGS_ASCII)
     {
       *atoms = _yr_atoms_list_concat(*atoms, wide_atoms);
     }
@@ -1432,7 +1432,7 @@ int yr_atoms_extract_from_re(
     }
   }
 
-  if (modifier.flags & STRING_GFLAGS_NO_CASE)
+  if (modifier.flags & STRING_FLAGS_NO_CASE)
   {
     FAIL_ON_ERROR_WITH_CLEANUP(
         _yr_atoms_case_insensitive(*atoms, &case_insensitive_atoms),
@@ -1456,8 +1456,8 @@ int yr_atoms_extract_from_re(
 
     (*atoms)->atom.length = 0;
     (*atoms)->backtrack = 0;
-    (*atoms)->forward_code = re_ast->root_node->forward_code;
-    (*atoms)->backward_code = NULL;
+    (*atoms)->forward_code_ref = re_ast->root_node->forward_code_ref;
+    (*atoms)->backward_code_ref = YR_ARENA_NULL_REF;
     (*atoms)->next = NULL;
   }
 
@@ -1494,8 +1494,8 @@ int yr_atoms_extract_from_string(
   if (item == NULL)
     return ERROR_INSUFFICIENT_MEMORY;
 
-  item->forward_code = NULL;
-  item->backward_code = NULL;
+  item->forward_code_ref = YR_ARENA_NULL_REF;
+  item->backward_code_ref = YR_ARENA_NULL_REF;
   item->next = NULL;
   item->backtrack = 0;
 
@@ -1532,7 +1532,7 @@ int yr_atoms_extract_from_string(
   *atoms = item;
   *min_atom_quality = max_quality;
 
-  if (modifier.flags & STRING_GFLAGS_WIDE)
+  if (modifier.flags & STRING_FLAGS_WIDE)
   {
     FAIL_ON_ERROR_WITH_CLEANUP(
         _yr_atoms_wide(*atoms, &wide_atoms),
@@ -1542,7 +1542,7 @@ int yr_atoms_extract_from_string(
           *atoms = NULL;
         });
 
-    if (modifier.flags & STRING_GFLAGS_ASCII)
+    if (modifier.flags & STRING_FLAGS_ASCII)
     {
       *atoms = _yr_atoms_list_concat(*atoms, wide_atoms);
     }
@@ -1553,7 +1553,7 @@ int yr_atoms_extract_from_string(
     }
   }
 
-  if (modifier.flags & STRING_GFLAGS_NO_CASE)
+  if (modifier.flags & STRING_FLAGS_NO_CASE)
   {
     FAIL_ON_ERROR_WITH_CLEANUP(
         _yr_atoms_case_insensitive(*atoms, &case_insensitive_atoms),
@@ -1566,7 +1566,7 @@ int yr_atoms_extract_from_string(
     *atoms = _yr_atoms_list_concat(*atoms, case_insensitive_atoms);
   }
 
-  if (modifier.flags & STRING_GFLAGS_XOR)
+  if (modifier.flags & STRING_FLAGS_XOR)
   {
     FAIL_ON_ERROR_WITH_CLEANUP(
       _yr_atoms_xor(*atoms, modifier.xor_min, modifier.xor_max, &xor_atoms),
@@ -1576,8 +1576,18 @@ int yr_atoms_extract_from_string(
         *atoms = NULL;
       });
 
-      yr_atoms_list_destroy(*atoms);
-      *atoms = xor_atoms;
+    yr_atoms_list_destroy(*atoms);
+    *atoms = xor_atoms;
+
+  }
+
+  // Recheck the atom quality, in case we have just generated some poor atoms.
+  // https://github.com/VirusTotal/yara/issues/1172
+  for (item = *atoms; item != NULL; item = item->next)
+  {
+    quality = config->get_atom_quality(config, &item->atom);
+    if (quality < *min_atom_quality)
+      *min_atom_quality = quality;
   }
 
   return ERROR_SUCCESS;

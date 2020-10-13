@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef YR_SCANNER_H
 #define YR_SCANNER_H
 
+#include <yara/filemap.h>
 #include <yara/types.h>
 #include <yara/utils.h>
 
@@ -91,6 +92,12 @@ YR_API int yr_scanner_scan_mem_blocks(
     YR_MEMORY_BLOCK_ITERATOR* iterator);
 
 
+extern int (*_yr_scanner_scan_mem)(
+    YR_SCANNER* scanner,
+    const uint8_t* buffer,
+    size_t buffer_size);
+
+
 YR_API int yr_scanner_scan_mem(
     YR_SCANNER* scanner,
     const uint8_t* buffer,
@@ -118,5 +125,18 @@ YR_API YR_RULE* yr_scanner_last_error_rule(
 
 YR_API YR_STRING* yr_scanner_last_error_string(
     YR_SCANNER* scanner);
+
+
+YR_API YR_RULE_PROFILING_INFO* yr_scanner_get_profiling_info(
+    YR_SCANNER* scanner);
+
+
+YR_API void yr_scanner_reset_profiling_info(
+    YR_SCANNER* scanner);
+
+
+YR_API int yr_scanner_print_profiling_info(
+    YR_SCANNER* scanner);
+
 
 #endif

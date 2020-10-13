@@ -36,8 +36,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <yara/rules.h>
 
 
-#define UNDEFINED           0xFFFABADAFABADAFFLL
-#define IS_UNDEFINED(x)     ((size_t)(x) == (size_t) UNDEFINED)
+#define YR_UNDEFINED           0xFFFABADAFABADAFFLL
+#define IS_UNDEFINED(x)     ((size_t)(x) == (size_t) YR_UNDEFINED)
 
 #define OP_ERROR          0
 #define OP_HALT           255
@@ -86,14 +86,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define OP_SWAPUNDEF               36
 #define OP_FILESIZE                37
 #define OP_ENTRYPOINT              38
-#define OP_CONTAINS                39
+// Unused opcode                   39
 #define OP_MATCHES                 40
 #define OP_IMPORT                  41
 #define OP_LOOKUP_DICT             42
-#define OP_JUNDEF                  43   # Not used
+#define OP_JUNDEF                  43   /* Not used */
 #define OP_JUNDEF_P                44
 #define OP_JNUNDEF                 45
-#define OP_JNUNDEF_P               46   # Not used
+#define OP_JNUNDEF_P               46   /* Not used */
 #define OP_JFALSE                  47
 #define OP_JFALSE_P                48
 #define OP_JTRUE                   49
@@ -105,7 +105,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define OP_ITER_START_DICT         55
 #define OP_ITER_START_INT_RANGE    56
 #define OP_ITER_START_INT_ENUM     57
-
+#define OP_JZ                      58
+#define OP_JZ_P                    59
+#define OP_PUSH_8                  60
+#define OP_PUSH_16                 61
+#define OP_PUSH_32                 62
+#define OP_PUSH_U                  63
+#define OP_CONTAINS                64
+#define OP_STARTSWITH              65
+#define OP_ENDSWITH                66
+#define OP_ICONTAINS               67
+#define OP_ISTARTSWITH             68
+#define OP_IENDSWITH               69
 
 #define _OP_EQ            0
 #define _OP_NEQ           1
@@ -177,7 +188,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #define OPERATION(operator, op1, op2) \
-    (IS_UNDEFINED(op1) || IS_UNDEFINED(op2)) ? (UNDEFINED) : (op1 operator op2)
+    (IS_UNDEFINED(op1) || IS_UNDEFINED(op2)) ? (YR_UNDEFINED) : (op1 operator op2)
 
 
 #define COMPARISON(operator, op1, op2) \

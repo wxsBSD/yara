@@ -29,6 +29,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if !defined(_WIN32) && !defined(__CYGWIN__)
 
+// for getline(3)
+#define _POSIX_C_SOURCE 200809L
+
 #include <sys/stat.h>
 #include <dirent.h>
 #include <unistd.h>
@@ -115,6 +118,12 @@ typedef struct COMPILER_RESULTS
 
 } COMPILER_RESULTS;
 
+typedef struct SCAN_OPTIONS
+{
+  bool follow_symlinks;
+  bool recursive_search;
+} SCAN_OPTIONS;
+
 
 #define MAX_ARGS_TAG            32
 #define MAX_ARGS_IDENTIFIER     32
@@ -127,7 +136,9 @@ static char* identifiers[MAX_ARGS_IDENTIFIER + 1];
 static char* ext_vars[MAX_ARGS_EXT_VAR + 1];
 static char* modules_data[MAX_ARGS_MODULE_DATA + 1];
 
+static bool follow_symlinks = true;
 static bool recursive_search = false;
+static bool scan_list_search = false;
 static bool show_module_data = false;
 static bool show_tags = false;
 static bool show_stats = false;
@@ -219,6 +230,12 @@ args_option_t options[] =
 
   OPT_BOOLEAN('r', "recursive", &recursive_search,
       "recursively search directories"),
+
+  OPT_BOOLEAN('N', "no-follow-symlinks", &follow_symlinks,
+      "do not follow symlinks when scanning"),
+
+  OPT_BOOLEAN(0, "scan-list", &scan_list_search,
+      "scan files listed in FILE, one per line"),
 
   OPT_INTEGER('k', "stack-size", &stack_size,
       "set maximum stack size (default=16384)", "SLOTS"),
@@ -351,7 +368,7 @@ static bool is_directory(
 
 static void scan_dir(
     const char* dir,
-    int recursive,
+    SCAN_OPTIONS* scan_opts,
     time_t start_time)
 {
   static char path_and_mask[MAX_PATH];
@@ -374,17 +391,97 @@ static void scan_dir(
       {
         file_queue_put(full_path);
       }
-      else if (recursive &&
+      else if (scan_opts->recursive_search &&
                strcmp(FindFileData.cFileName, ".") != 0 &&
                strcmp(FindFileData.cFileName, "..") != 0)
       {
-        scan_dir(full_path, recursive, start_time);
+        scan_dir(full_path, scan_opts, start_time);
       }
 
     } while (FindNextFile(hFind, &FindFileData));
 
     FindClose(hFind);
   }
+}
+
+
+#if defined(__CYGWIN__)
+#define strtok_s strtok_r
+#endif
+
+static int populate_scan_list(
+    const char* filename,
+    SCAN_OPTIONS* scan_opts,
+    time_t start_time)
+{
+  char* context;
+  DWORD nread;
+
+  HANDLE hFile = CreateFile(
+      filename, GENERIC_READ, FILE_SHARE_READ, NULL,
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+  if (hFile == INVALID_HANDLE_VALUE)
+  {
+    fprintf(stderr, "error: could not open file \"%s\".\n", filename);
+    return ERROR_COULD_NOT_OPEN_FILE;
+  }
+
+  DWORD fileSize = GetFileSize(hFile, NULL);
+
+  if (fileSize == INVALID_FILE_SIZE)
+  {
+    fprintf(stderr,
+      "error: could not determine size of file \"%s\".\n", filename);
+    CloseHandle(hFile);
+    return ERROR_COULD_NOT_READ_FILE;
+  }
+
+  // INVALID_FILE_SIZE is 0xFFFFFFFF, so (+1) will not overflow
+  char* buf = (char*) VirtualAlloc(
+      NULL, fileSize + 1, MEM_COMMIT, PAGE_READWRITE);
+
+  if (buf == NULL)
+  {
+    fprintf(stderr,
+        "error: could not allocate memory for file \"%s\".\n", filename);
+    CloseHandle(hFile);
+    return ERROR_INSUFFICIENT_MEMORY;
+  }
+
+  DWORD total = 0;
+
+  while (total < fileSize)
+  {
+    if (!ReadFile(hFile, buf + total, fileSize - total, &nread, NULL))
+    {
+      fprintf(stderr, "error: could not read file \"%s\".\n", filename);
+      CloseHandle(hFile);
+      return ERROR_COULD_NOT_READ_FILE;
+    }
+    total += nread;
+  }
+
+  char* path = strtok_s(buf, "\n", &context);
+
+  while (path != NULL)
+  {
+    // remove trailing carriage return, if present
+    if (*path != '\0')
+    {
+      char* final = path + strlen(path) - 1;
+      if (*final == '\r')
+        *final = '\0';
+    }
+    if (is_directory(path))
+      scan_dir(path, scan_opts, start_time);
+    else
+      file_queue_put(path);
+    path = strtok_s(NULL, "\n", &context);
+  }
+
+  CloseHandle(hFile);
+  return ERROR_SUCCESS;
 }
 
 #else
@@ -394,7 +491,7 @@ static bool is_directory(
 {
   struct stat st;
 
-  if (stat(path,&st) == 0)
+  if (stat(path, &st) == 0)
     return S_ISDIR(st.st_mode);
 
   return 0;
@@ -403,7 +500,7 @@ static bool is_directory(
 
 static void scan_dir(
     const char* dir,
-    int recursive,
+    SCAN_OPTIONS* scan_opts,
     time_t start_time)
 {
   DIR* dp = opendir(dir);
@@ -421,19 +518,25 @@ static void scan_dir(
 
       int err = lstat(full_path, &st);
 
+      if (err != 0 || (S_ISLNK(st.st_mode) && !scan_opts->follow_symlinks))
+      {
+        de = readdir(dp);
+        continue;
+      }
+
+      err = stat(full_path, &st);
       if (err == 0)
       {
-        if(S_ISREG(st.st_mode))
+        if (S_ISREG(st.st_mode))
         {
           file_queue_put(full_path);
         }
-        else if(recursive &&
+        else if (scan_opts->recursive_search &&
                 S_ISDIR(st.st_mode) &&
-                !S_ISLNK(st.st_mode) &&
                 strcmp(de->d_name, ".") != 0 &&
                 strcmp(de->d_name, "..") != 0)
         {
-          scan_dir(full_path, recursive, start_time);
+          scan_dir(full_path, scan_opts, start_time);
         }
       }
 
@@ -442,6 +545,42 @@ static void scan_dir(
 
     closedir(dp);
   }
+}
+
+
+static int populate_scan_list(
+    const char* filename,
+    SCAN_OPTIONS* scan_opts,
+    time_t start_time)
+{
+  size_t nsize = 0;
+  ssize_t nread;
+  char* path = NULL;
+
+  FILE* fh_scan_list = fopen(filename, "r");
+  if (fh_scan_list == NULL)
+  {
+    fprintf(stderr, "error: could not open file \"%s\".\n", filename);
+    return ERROR_COULD_NOT_OPEN_FILE;
+  }
+
+  while ((nread = getline(&path, &nsize, fh_scan_list)) != -1)
+  {
+    // remove trailing newline
+    if (nread && path[nread - 1] == '\n')
+    {
+      path[nread - 1] = '\0';
+      nread--;
+    }
+    if (is_directory(path))
+      scan_dir(path, scan_opts, start_time);
+    else
+      file_queue_put(path);
+  }
+
+  free(path);
+  fclose(fh_scan_list);
+  return ERROR_SUCCESS;
 }
 
 #endif
@@ -587,19 +726,47 @@ static void print_compiler_error(
     int error_level,
     const char* file_name,
     int line_number,
+    const YR_RULE* rule,
     const char* message,
     void* user_data)
 {
+  char* msg_type;
+
   if (error_level == YARA_ERROR_LEVEL_ERROR)
   {
-    fprintf(stderr, "%s(%d): error: %s\n", file_name, line_number, message);
+    msg_type = "error";
   }
   else if (!ignore_warnings)
   {
     COMPILER_RESULTS* compiler_results = (COMPILER_RESULTS*) user_data;
     compiler_results->warnings++;
+    msg_type = "warning";
+  }
+  else
+  {
+    return;
+  }
 
-    fprintf(stderr, "%s(%d): warning: %s\n", file_name, line_number, message);
+  if (rule != NULL)
+  {
+    fprintf(
+        stderr,
+        "%s(%d): %s in rule \"%s\": %s\n",
+        file_name,
+        line_number,
+        msg_type,
+        rule->identifier,
+        message);
+  }
+  else
+  {
+    fprintf(
+        stderr,
+        "%s(%d): %s: %s\n",
+        file_name,
+        line_number,
+        msg_type,
+        message);
   }
 }
 
@@ -630,11 +797,11 @@ static void print_rules_stats(
 
   printf(
       "number of rules                    : %d\n",
-      stats.rules);
+      stats.num_rules);
 
   printf(
       "number of strings                  : %d\n",
-      stats.strings);
+      stats.num_strings);
 
   printf(
       "number of AC matches               : %d\n",
@@ -651,12 +818,13 @@ static void print_rules_stats(
 
   printf("match list length percentiles\n");
 
-  for (int i = 0; i <= 100; i++)
+  for (int i = 100; i >= 0; i--)
     printf(" %3d: %d\n", i, stats.ac_match_list_length_pctls[i]);
 }
 
 
 static int handle_message(
+    YR_SCAN_CONTEXT* context,
     int message,
     YR_RULE* rule,
     void* data)
@@ -774,7 +942,7 @@ static int handle_message(
       {
         YR_MATCH* match;
 
-        yr_string_matches_foreach(string, match)
+        yr_string_matches_foreach(context, string, match)
         {
           if (show_string_length)
             printf("0x%" PRIx64 ":%d:%s",
@@ -820,6 +988,7 @@ static int handle_message(
 
 
 static int callback(
+    YR_SCAN_CONTEXT* context,
     int message,
     void* message_data,
     void* user_data)
@@ -832,7 +1001,8 @@ static int callback(
   {
     case CALLBACK_MSG_RULE_MATCHING:
     case CALLBACK_MSG_RULE_NOT_MATCHING:
-      return handle_message(message, (YR_RULE*) message_data, user_data);
+      return handle_message(
+          context, message, (YR_RULE*) message_data, user_data);
 
     case CALLBACK_MSG_IMPORT_MODULE:
 
@@ -1077,11 +1247,16 @@ int main(
   YR_COMPILER* compiler = NULL;
   YR_RULES* rules = NULL;
   YR_SCANNER* scanner = NULL;
+  SCAN_OPTIONS scan_opts;
 
+  bool arg_is_dir = false;
   int flags = 0;
   int result, i;
 
   argc = args_parse(options, argc, argv);
+
+  scan_opts.follow_symlinks = follow_symlinks;
+  scan_opts.recursive_search = recursive_search;
 
   if (show_version)
   {
@@ -1221,7 +1396,14 @@ int main(
   if (fast_scan)
     flags |= SCAN_FLAGS_FAST_MODE;
 
-  if (is_directory(argv[argc - 1]))
+  arg_is_dir = is_directory(argv[argc - 1]);
+
+  if (scan_list_search && arg_is_dir)
+  {
+    fprintf(stderr, "error: cannot use a directory as scan list.\n");
+    exit_with_code(EXIT_FAILURE);
+  }
+  else if (scan_list_search || arg_is_dir)
   {
     if (file_queue_init() != 0)
     {
@@ -1261,7 +1443,17 @@ int main(
       }
     }
 
-    scan_dir(argv[argc - 1], recursive_search, start_time);
+    if (arg_is_dir)
+    {
+      scan_dir(argv[argc - 1], &scan_opts, start_time);
+    }
+    else
+    {
+      result = populate_scan_list(argv[argc - 1], &scan_opts, start_time);
+
+      if (result != ERROR_SUCCESS)
+        exit_with_code(EXIT_FAILURE);
+    }
 
     file_queue_finish();
 
@@ -1304,16 +1496,15 @@ int main(
 
     if (print_count_only)
       printf("%d\n", user_data.current_count);
+
+    #ifdef YR_PROFILING_ENABLED
+    yr_scanner_print_profiling_info(scanner);
+    #endif
   }
 
   result = EXIT_SUCCESS;
 
 _exit:
-
-  #ifdef PROFILING_ENABLED
-  if (rules != NULL)
-    yr_rules_print_profiling_info(rules);
-  #endif
 
   unload_modules_data();
 

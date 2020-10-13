@@ -96,7 +96,7 @@ int yr_object_create(
   switch(type)
   {
     case OBJECT_TYPE_INTEGER:
-      obj->value.i = UNDEFINED;
+      obj->value.i = YR_UNDEFINED;
       break;
     case OBJECT_TYPE_FLOAT:
       obj->value.d = NAN;
@@ -589,7 +589,7 @@ int yr_object_copy(
     case OBJECT_TYPE_STRING:
 
       if (object->value.ss != NULL)
-        copy->value.ss = sized_string_dup(object->value.ss);
+        copy->value.ss = ss_dup(object->value.ss);
       else
         copy->value.ss = NULL;
 
@@ -883,7 +883,7 @@ int yr_object_dict_set_item(
 
   item->parent = object;
 
-  dict->items->objects[dict->items->used].key = sized_string_new(key);
+  dict->items->objects[dict->items->used].key = ss_new(key);
   dict->items->objects[dict->items->used].obj = item;
 
   dict->items->used++;
@@ -920,7 +920,7 @@ bool yr_object_has_undefined_value(
     case OBJECT_TYPE_STRING:
       return field_obj->value.ss == NULL;
     case OBJECT_TYPE_INTEGER:
-      return field_obj->value.i == UNDEFINED;
+      return field_obj->value.i == YR_UNDEFINED;
   }
 
   return false;
@@ -945,7 +945,7 @@ int64_t yr_object_get_integer(
   va_end(args);
 
   if (integer_obj == NULL)
-    return UNDEFINED;
+    return YR_UNDEFINED;
 
   assertf(integer_obj->type == OBJECT_TYPE_INTEGER,
           "type of \"%s\" is not integer\n", field);
@@ -1164,19 +1164,19 @@ YR_API void yr_object_print_data(
   switch(object->type)
   {
     case OBJECT_TYPE_FLOAT:
-      if (object->value.d != UNDEFINED)
+      if (object->value.i != YR_UNDEFINED)
         printf(" = %f", object->value.d);
       else
-        printf(" = UNDEFINED");
+        printf(" = YR_UNDEFINED");
 
       break;
 
     case OBJECT_TYPE_INTEGER:
 
-      if (object->value.i != UNDEFINED)
+      if (object->value.i != YR_UNDEFINED)
         printf(" = %" PRId64, object->value.i);
       else
-        printf(" = UNDEFINED");
+        printf(" = YR_UNDEFINED");
 
       break;
 
@@ -1201,7 +1201,7 @@ YR_API void yr_object_print_data(
       }
       else
       {
-        printf(" = UNDEFINED");
+        printf(" = YR_UNDEFINED");
       }
 
       break;

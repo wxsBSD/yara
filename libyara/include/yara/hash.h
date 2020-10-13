@@ -99,6 +99,19 @@ YR_API int yr_hash_table_add(
     void* value);
 
 
+YR_API int yr_hash_table_add_uint32(
+    YR_HASH_TABLE* table,
+    const char* key,
+    const char* ns,
+    uint32_t value);
+
+
+YR_API uint32_t yr_hash_table_lookup_uint32(
+    YR_HASH_TABLE* table,
+    const char* key,
+    const char* ns);
+
+
 YR_API void* yr_hash_table_lookup_raw_key(
     YR_HASH_TABLE* table,
     const void* key,
@@ -119,5 +132,20 @@ YR_API int yr_hash_table_add_raw_key(
     size_t key_length,
     const char* ns,
     void* value);
+
+
+YR_API int yr_hash_table_add_uint32_raw_key(
+    YR_HASH_TABLE* table,
+    const void* key,
+    size_t key_length,
+    const char* ns,
+    uint32_t value);
+
+
+YR_API uint32_t yr_hash_table_lookup_uint32_raw_key(
+    YR_HASH_TABLE* table,
+    const void* key,
+    size_t key_length,
+    const char* ns);
 
 #endif

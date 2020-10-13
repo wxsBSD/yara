@@ -6,9 +6,7 @@
 
 int main(int argc, char** argv)
 {
-  char *top_srcdir = getenv("TOP_SRCDIR");
-  if (top_srcdir)
-    chdir(top_srcdir);
+  chdir_if_env_top_srcdir();
 
   yr_initialize();
 
@@ -72,6 +70,13 @@ int main(int argc, char** argv)
       }",
       "tests/data/33fc70f99be6d2833ae48852d611c8048d0c053ed0b2c626db4dbe902832a08b");
 
+  assert_true_rule_file(
+      "import \"dotnet\" \
+      rule test { \
+        condition: \
+          dotnet.user_strings[0] == \"F\\x00r\\x00e\\x00e\\x00D\\x00i\\x00s\\x00c\\x00B\\x00u\\x00r\\x00n\\x00e\\x00r\\x00.\\x00S\\x00t\\x00r\\x00i\\x00n\\x00g\\x00R\\x00e\\x00s\\x00o\\x00u\\x00r\\x00c\\x00e\\x00s\\x00\" \
+      }",
+      "tests/data/33fc70f99be6d2833ae48852d611c8048d0c053ed0b2c626db4dbe902832a08b");
   yr_finalize();
   return 0;
 }
