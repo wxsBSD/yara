@@ -111,8 +111,9 @@ uint8_t* do_fixups(uint8_t* map, off_t size) {
       return NULL;
     }
 
-    *(uint64_t*) (code_start + lb + 2) = (uint64_t) code_start + rb + 10;
-    *(uint64_t*) (code_start + rb + 2) = (uint64_t) code_start + lb;
+    *(int32_t*) (code_start + lb + 2) = (int32_t) ((code_start + rb + 6) - (code_start + lb));
+    *(int32_t*) (code_start + rb + 2) = (int32_t) ((code_start + lb) - (code_start + rb) - 1);
+
 
     fixup_p += 2;
     fixups--;

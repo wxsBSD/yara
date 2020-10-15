@@ -76,7 +76,7 @@ def compile(infile):
             offsets.append(len(yr_bytecode))
 
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_PUSH_P"])
-            yr_bytecode += struct.pack("=cQ", yr_opcodes["OP_JFALSE_P"], 0)
+            yr_bytecode += struct.pack("=cI", yr_opcodes["OP_JFALSE_P"], 0)
         elif t.type == "RB":
             if len(offsets) == 0:
                 raise bf2y_exception("RB before LB")
@@ -84,7 +84,7 @@ def compile(infile):
             fixups.append((offsets.pop(), len(yr_bytecode)))
 
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_PUSH_P"])
-            yr_bytecode += struct.pack("=cQ", yr_opcodes["OP_JTRUE_P"], 0)
+            yr_bytecode += struct.pack("=cI", yr_opcodes["OP_JTRUE_P"], 0)
 
     yr_bytecode += struct.pack("=c", yr_opcodes["OP_HALT"])
     if len(offsets) != 0:

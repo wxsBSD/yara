@@ -1727,7 +1727,7 @@ YR_API int yr_execute_code(
         #if PARANOID_EXEC
         ensure_within_mem(r1.i);
         #endif
-        printf("%c", (char) mem[r1.i].i);
+        printf("%lli", (unsigned long long) mem[r1.i].i);
         fflush(stdout);
         break;
 
