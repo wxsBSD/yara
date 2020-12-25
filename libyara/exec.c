@@ -346,7 +346,6 @@ YR_API int yr_execute_code(YR_SCAN_CONTEXT* context)
   char* args_fmt;
 
   int c;
-  int i;
   int found;
   int count;
   int result = ERROR_SUCCESS;
