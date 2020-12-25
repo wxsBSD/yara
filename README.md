@@ -43,6 +43,11 @@ yara-python extension.
 
 ## Additional resources
 
+Do you use GitHub for storing you YARA rules? [YARA-CI](https://yara-ci.cloud.virustotal.com)
+may be a useful addition to your toolbelt. This is GitHub application that provides
+continuous testing for your rules, helping you to identify common mistakes and
+false positives.
+
 If you plan to use YARA to scan compressed files (.zip, .tar, etc) you should
 take a look at [yextend](https://github.com/BayshoreNetworks/yextend), a very
 helpful extension to YARA developed and open-sourced by Bayshore Networks.
@@ -61,6 +66,7 @@ awesome list of [YARA-related stuff](https://github.com/InQuest/awesome-yara).
 * [BinaryAlert](https://github.com/airbnb/binaryalert)
 * [Blue Coat](http://www.bluecoat.com/products/malware-analysis-appliance)
 * [Blueliv](http://www.blueliv.com)
+* [Claroty](https://claroty.com/continuous-threat-detection)
 * [Cofense](https://cofense.com)
 * [Conix](http://www.conix.fr)
 * [CounterCraft](https://www.countercraft.eu)

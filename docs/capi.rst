@@ -225,6 +225,7 @@ Possible values for ``message`` are::
   CALLBACK_MSG_SCAN_FINISHED
   CALLBACK_MSG_IMPORT_MODULE
   CALLBACK_MSG_MODULE_IMPORTED
+  CALLBACK_MSG_TOO_MANY_MATCHES
 
 Your callback function will be called once for each rule with either
 a ``CALLBACK_MSG_RULE_MATCHING`` or ``CALLBACK_MSG_RULE_NOT_MATCHING`` message,
@@ -252,6 +253,12 @@ Once a module is imported the callback is called again with the
 CALLBACK_MSG_MODULE_IMPORTED. When this happens ``message_data`` points to a
 :c:type:`YR_OBJECT_STRUCTURE` structure. This structure contains all the
 information provided by the module about the currently scanned file.
+
+If during the scan a string hits the maximum number of matches your callback
+will be called once with the CALLBACK_MSG_TOO_MANY_MATCHES. When this happens,
+`message_data` is a `YR_STRING*` which points to the string which caused the
+warning. If your callback returns CALLBACK_CONTINUE the string will be disabled
+and scanning will continue, otherwise scanning will be halted.
 
 Lastly, the callback function is also called with the
 ``CALLBACK_MSG_SCAN_FINISHED`` message when the scan is finished. In this case
@@ -884,6 +891,31 @@ Functions
 
   Define a string external variable.
 
+.. c:function:: int yr_scanner_scan_mem_blocks(YR_SCANNER* scanner, YR_MEMORY_BLOCK_ITERATOR* iterator)
+
+  .. versionadded:: 3.8.0
+
+  Scan a serie of memory blocks that are provided by a :c:type:`YR_MEMORY_BLOCK_ITERATOR`.
+  The iterator has a pair of `first` and `next` functions, that must return
+  the first and next blocks respectively. The how the data is split in blocks is
+  up to the iterator implementation.
+
+  Returns one of the following error codes:
+
+    :c:macro:`ERROR_SUCCESS`
+
+    :c:macro:`ERROR_INSUFFICIENT_MEMORY`
+
+    :c:macro:`ERROR_TOO_MANY_SCAN_THREADS`
+
+    :c:macro:`ERROR_SCAN_TIMEOUT`
+
+    :c:macro:`ERROR_CALLBACK_ERROR`
+
+    :c:macro:`ERROR_TOO_MANY_MATCHES`
+
+    :c:macro:`ERROR_BLOCK_NOT_READY`
+
 .. c:function:: int yr_scanner_scan_mem(YR_SCANNER* scanner, const uint8_t* buffer, size_t buffer_size)
 
   .. versionadded:: 3.8.0
@@ -993,3 +1025,7 @@ Error codes
   your rules contains very short or very common strings like ``01 02`` or
   ``FF FF FF FF``. The limit is defined by ``YR_MAX_STRING_MATCHES`` in
   *./include/yara/limits.h*
+
+.. c:macro:: ERROR_BLOCK_NOT_READY
+
+  Next memory block to scan is not ready; custom iterators may return this.
