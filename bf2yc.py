@@ -71,7 +71,7 @@ def compile(infile):
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_INPUT"])
         elif t.type == "LB":
             # Don't insert a jump target here, we calculate the correct one
-            # when a matching a matching RB is found and splice it in.
+            # when a matching RB is found and splice it in.
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_PUSH_P"])
             offsets.append(len(yr_bytecode))
         elif t.type == "RB":
