@@ -92,7 +92,7 @@ def compile(infile):
             yr_bytecode += struct.pack("=ci", yr_opcodes["OP_JTRUE_P"], lb_rel)
 
             # Now do the jump target for the matching LB. We calculate it
-            # relative ot the matching LB and then splice in the target.
+            # relative to the matching LB and then splice in the target.
             target_rel = len(yr_bytecode) - lb
             inst = struct.pack("=ci", yr_opcodes["OP_JFALSE_P"], target_rel)
             left = yr_bytecode[:lb]
