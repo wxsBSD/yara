@@ -2,30 +2,30 @@
 
 # Copyright (c) 2020. Wesley Shields. All Rights Reserved.
 #
-# Redistribution and use in source and binary forms, with or without modification,
-# are permitted provided that the following conditions are met:
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
 #
 # 1. Redistributions of source code must retain the above copyright notice, this
 # list of conditions and the following disclaimer.
 #
 # 2. Redistributions in binary form must reproduce the above copyright notice,
-# this list of conditions and the following disclaimer in the documentation and/or
-# other materials provided with the distribution.
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
 #
 # 3. Neither the name of the copyright holder nor the names of its contributors
 # may be used to endorse or promote products derived from this software without
 # specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 import struct
@@ -43,15 +43,12 @@ def compile(infile):
     # A stack of offsets for LB.
     offsets = []
 
-    # Locations of fixups that need to be made once the bytecode is mapped.
-    fixups = []
-
     # We dedicate mem[0] as the pointer, the rest is for the user.
     #
     # Caveat emptor. YARA only has 8 (by default) memory cells, if you point
     # outside of that your program will crash.
     yr_bytecode = bytearray()
-    yr_bytecode = struct.pack("=cQ", yr_opcodes["OP_INCR_M"], 0)
+    yr_bytecode += struct.pack("=cQ", yr_opcodes["OP_INCR_M"], 0)
     for t in lexer.get_tokens():
         if t.type == "GT":
             yr_bytecode += struct.pack("=cQ", yr_opcodes["OP_INCR_M"], 0)
@@ -73,35 +70,40 @@ def compile(infile):
         elif t.type == "COMMA":
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_INPUT"])
         elif t.type == "LB":
-            offsets.append(len(yr_bytecode))
-
+            # Don't insert a jump target here, we calculate the correct one
+            # when a matching a matching RB is found and splice it in.
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_PUSH_P"])
-            yr_bytecode += struct.pack("=cI", yr_opcodes["OP_JFALSE_P"], 0)
+            offsets.append(len(yr_bytecode))
         elif t.type == "RB":
             if len(offsets) == 0:
                 raise bf2y_exception("RB before LB")
 
-            fixups.append((offsets.pop(), len(yr_bytecode)))
-
             yr_bytecode += struct.pack("=c", yr_opcodes["OP_BF_PUSH_P"])
-            yr_bytecode += struct.pack("=cI", yr_opcodes["OP_JTRUE_P"], 0)
+
+            # Get the offset of the matching LB and calculate the relative
+            # offset to it from our current position. This is the jump target
+            # for the current RB.
+            lb = offsets.pop()
+            # This should always be a negative value.
+            lb_rel = lb - len(yr_bytecode)
+            if lb_rel > 0:
+                raise bf2y_exception("Positive LB relative value")
+
+            yr_bytecode += struct.pack("=ci", yr_opcodes["OP_JTRUE_P"], lb_rel)
+
+            # Now do the jump target for the matching LB. We calculate it
+            # relative ot the matching LB and then splice in the target.
+            target_rel = len(yr_bytecode) - lb
+            inst = struct.pack("=ci", yr_opcodes["OP_JFALSE_P"], target_rel)
+            left = yr_bytecode[:lb]
+            right = yr_bytecode[lb:]
+            yr_bytecode = left + inst + right
 
     yr_bytecode += struct.pack("=c", yr_opcodes["OP_HALT"])
     if len(offsets) != 0:
         raise bf2y_exception("Unbalanced LB/RB")
 
-    return (yr_bytecode, fixups)
-
-
-def write_output(yr_bytecode, fixups, outfile):
-    final = bytearray()
-    final += struct.pack("=I", len(fixups))
-    for lb, rb in fixups:
-        final += struct.pack("=II", lb, rb)
-    final += yr_bytecode
-
-    with open(outfile, "wb") as f:
-        f.write(final)
+    return yr_bytecode
 
 
 def __main__():
@@ -110,12 +112,14 @@ def __main__():
         return
 
     try:
-        yr_bytecode, fixups = compile(sys.argv[1])
+        yr_bytecode = compile(sys.argv[1])
     except bf2y_exception as e:
         print(e)
         return
 
-    write_output(yr_bytecode, fixups, sys.argv[2])
+    with open(sys.argv[2], "wb") as f:
+        f.write(yr_bytecode)
+
 
 if __name__ == "__main__":
     __main__()

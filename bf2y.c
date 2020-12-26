@@ -78,53 +78,8 @@ void* map_bytecode(char* src, off_t* size) {
   return map;
 }
 
-uint8_t* do_fixups(uint8_t* map, off_t size) {
-  uint8_t* map_end;
-  uint8_t* code_start;
-  uint32_t fixups;
-  uint32_t* fixup_p;
-  uint32_t lb;
-  uint32_t rb;
-
-  map_end = map + size;
-  if (map_end < map) {
-    printf("Map overflow.\n");
-    return NULL;
-  }
-
-  fixups = *(uint32_t*) map;
-  fixup_p = (uint32_t*) (map + sizeof(uint32_t));
-  code_start = (uint8_t*) (fixup_p + fixups * 2);
-  while (fixups > 0) {
-    if (fixup_p < (uint32_t*) map || fixup_p > (uint32_t*) map_end ||
-        fixup_p + 2 > (uint32_t*) code_start) {
-      printf("Invalid fixup.\n");
-      return NULL;
-    }
-
-    lb = *fixup_p;
-    rb = *(fixup_p + 1);
-
-    if (code_start + lb > map_end || code_start + lb < code_start ||
-        code_start + rb > map_end || code_start + lb < code_start) {
-      printf("Invalid fixup offset.\n");
-      return NULL;
-    }
-
-    *(int32_t*) (code_start + lb + 2) = (int32_t) ((code_start + rb + 6) - (code_start + lb));
-    *(int32_t*) (code_start + rb + 2) = (int32_t) ((code_start + lb) - (code_start + rb) - 1);
-
-
-    fixup_p += 2;
-    fixups--;
-  }
-
-  return code_start;
-}
-
 int main(int argc, char **argv) {
   uint8_t* map;
-  uint8_t* code_start;
   char* src;
   off_t size;
   YR_SCAN_CONTEXT* context;
@@ -139,12 +94,6 @@ int main(int argc, char **argv) {
   map = map_bytecode(src, &size);
   if (map == NULL)
     return 1;
-
-  code_start = do_fixups(map, size);
-  if (code_start == NULL) {
-    munmap(map, size);
-    return 1;
-  }
 
   context = (YR_SCAN_CONTEXT*) malloc(sizeof(YR_SCAN_CONTEXT));
   if (context == NULL) {
@@ -165,7 +114,7 @@ int main(int argc, char **argv) {
   memset(rules, 0, sizeof(YR_RULES));
 
   context->rules = rules;
-  rules->code_start = code_start;
+  rules->code_start = map;
 
   yr_set_configuration(YR_CONFIG_STACK_SIZE, &stack_size);
   (void) yr_execute_code(context);
