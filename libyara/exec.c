@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <float.h>
 #include <math.h>
 #include <string.h>
+#include <sys/time.h>
 #include <yara.h>
 #include <yara/arena.h>
 #include <yara/endian.h>
@@ -364,6 +365,7 @@ int yr_execute_code(YR_SCAN_CONTEXT* context)
   int result = ERROR_SUCCESS;
   int cycle = 0;
   int obj_count = 0;
+  struct timeval t1;
 
   bool stop = false;
 
@@ -385,6 +387,9 @@ int yr_execute_code(YR_SCAN_CONTEXT* context)
       yr_notebook_create(512 * sizeof(YR_ITERATOR), &it_notebook),
       yr_arena_release(obj_arena);
       yr_free(stack.items));
+
+  gettimeofday(&t1, NULL);
+  srand(t1.tv_usec * t1.tv_sec);
 
 #ifdef YR_PROFILING_ENABLED
   start_time = yr_stopwatch_elapsed_ns(&context->stopwatch);
@@ -1335,6 +1340,8 @@ int yr_execute_code(YR_SCAN_CONTEXT* context)
 
       if (is_undef(r2))
         r1.i = found >= count ? 1 : 0;
+      else if (r2.i == -1) // "some" troll
+        r1.i = found > 0 && found >= rand() % (count + 1) ? 1 : 0;
       else
         r1.i = found >= r2.i ? 1 : 0;
 

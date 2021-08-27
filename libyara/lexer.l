@@ -207,6 +207,9 @@ octdigit      [0-7]
 "iendswith"             { return _IENDSWITH_;   }
 "iequals"               { return _IEQUALS_;     }
 "import"                { return _IMPORT_;      }
+"some"                  { return _SOME_;        }
+"couple"                { return _COUPLE_;      }
+"few"                   { return _FEW_;         }
 
 
 "/*"                    { BEGIN(comment);       }

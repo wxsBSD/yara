@@ -59,8 +59,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define YYMALLOC yr_malloc
 #define YYFREE yr_free
 
-#define FOR_EXPRESSION_ALL 1
-#define FOR_EXPRESSION_ANY 2
+#define FOR_EXPRESSION_ALL  1
+#define FOR_EXPRESSION_ANY  2
+#define FOR_EXPRESSION_SOME 3
 
 #define fail_with_error(e) \
     { \
@@ -218,6 +219,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %token _GE_                                            ">="
 %token _SHIFT_LEFT_                                    "<<"
 %token _SHIFT_RIGHT_                                   ">>"
+%token _SOME_                                          "<some>"
+%token _COUPLE_                                        "<couple>"
+%token _FEW_                                           "<few>"
 
 // Operator precedence and associativity. Higher precedence operators are lower
 // in the list. Operators that appear in the same line have the same precedence.
@@ -2211,6 +2215,11 @@ for_expression
         yr_parser_emit_push_const(yyscanner, 1);
         $$ = FOR_EXPRESSION_ANY;
       }
+    | _SOME_
+      {
+        yr_parser_emit_with_arg(yyscanner, OP_PUSH, -1, NULL, NULL);
+        $$ = FOR_EXPRESSION_SOME;
+      }
     ;
 
 
@@ -2218,6 +2227,20 @@ primary_expression
     : '(' primary_expression ')'
       {
         $$ = $2;
+      }
+    | _COUPLE_
+      {
+        fail_if_error(yr_parser_emit_push_const(yyscanner, 2));
+
+        $$.type = EXPRESSION_TYPE_INTEGER;
+        $$.value.integer = 2;
+      }
+    | _FEW_
+      {
+        fail_if_error(yr_parser_emit_push_const(yyscanner, 3));
+
+        $$.type = EXPRESSION_TYPE_INTEGER;
+        $$.value.integer = 3;
       }
     | _FILESIZE_
       {
