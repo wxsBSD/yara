@@ -196,6 +196,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %token _ALL_                                           "<all>"
 %token _ANY_                                           "<any>"
 %token _NONE_                                          "<none>"
+%token _LEEROY_                                        "<leeroy>"
 %token _IN_                                            "<in>"
 %token _OF_                                            "<of>"
 %token _FOR_                                           "<for>"
@@ -2356,6 +2357,14 @@ primary_expression
     : '(' primary_expression ')'
       {
         $$ = $2;
+      }
+    | _LEEROY_
+      {
+        // Repeating, of course... ;)
+        fail_if_error(yr_parser_emit_push_const(yyscanner, 33));
+
+        $$.type = EXPRESSION_TYPE_INTEGER;
+        $$.value.integer = 33;
       }
     | _FILESIZE_
       {

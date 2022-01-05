@@ -197,6 +197,7 @@ octdigit      [0-7]
 "all"                   { return _ALL_;         }
 "any"                   { return _ANY_;         }
 "none"                  { return _NONE_;        }
+"leeroy"                { return _LEEROY_;      }
 "entrypoint"            { return _ENTRYPOINT_;  }
 "filesize"              { return _FILESIZE_;    }
 "matches"               { return _MATCHES_;     }
