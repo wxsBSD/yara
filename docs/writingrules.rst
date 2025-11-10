@@ -887,6 +887,7 @@ Precedence  Operator     Description                                Associativit
             matches      String matches regular expression
 ----------  -----------  -----------------------------------------  -------------
 11          not          Logical NOT                                Right-to-left
+
             defined      Check if an expression is defined
 ----------  -----------  -----------------------------------------  -------------
 12          and          Logical AND                                Left-to-right
